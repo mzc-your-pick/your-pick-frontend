@@ -246,7 +246,7 @@ export default function Vote() {
               <div className="vote__chips">
                 <span className="vote__chip">{detail.episode}회차</span>
                 <span className="vote__chip">{detail.round}</span>
-                <span className="vote__chip">type {detail.vote_type}</span>
+                {/* <span className="vote__chip">type {detail.vote_type}</span> */}
               </div>
 
               <h1 className="vote__title">{detail.title}</h1>
