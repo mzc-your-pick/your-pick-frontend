@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <div className="home">
       <header className="home__header">
-        <div className="home__logo">your pick</div>
+        <div className="home__logo">YP</div>
       </header>
 
       <main className="home__main">
