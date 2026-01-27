@@ -56,7 +56,7 @@
   - 총 투표수 + 각 항목 득표수 + 퍼센트 bar 표시
 - 방송 결과: 방송 결과가 없으면(null) 민심 결과만 표시
 - 댓글: 로그인 없이 id/pw 기반 작성 + (수정/삭제는 pw 검증 방식으로 연동 예정)
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 35 00" src="https://github.com/user-attachments/assets/503f7d1b-98e5-4b94-9dfd-f2b87b2f08d4" />
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 37 25" src="https://github.com/user-attachments/assets/f641ad95-27ad-43c8-809b-5b833e9d5db6" />
 
 ---
 
