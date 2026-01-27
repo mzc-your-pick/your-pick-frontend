@@ -1,73 +1,79 @@
-# React + TypeScript + Vite
+# Your Pick – 서바이벌 민심 투표 서비스 (Frontend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+서바이벌 프로그램의 대결 결과를  
+**패널 선택 vs 대중(민심) 투표**로 비교해주는 웹 서비스입니다.
 
-Currently, two official plugins are available:
+> “전문가의 선택과 대중의 선택은 얼마나 다를까?”
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## 🧩 서비스 개요
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Your Pick은 각종 서바이벌 프로그램의 대결 결과를 기반으로  
+사용자가 직접 투표하고, 실제 방송 결과(패널 선택)와  
+대중의 선택을 **시각적으로 비교**할 수 있는 서비스입니다.
 
-## Expanding the ESLint configuration
+### 예시 프로그램
+- 흑백요리사
+- 피지컬100
+- 스트릿 우먼 파이터
+- 프로듀스 시리즈
+- 더 인플루언서
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🎯 핵심 기능 (Frontend 기준)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 1. 대결 선택
+- 프로그램 선택
+- 회차 선택
+- 대결(매치업) 선택  
+  - 예: A 셰프 vs B 셰프
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. 사용자 투표
+- “누가 더 잘했나?” 투표
+- 투표 후 결과 확인
+
+### 3. 결과 비교 시각화
+- 패널 선택 비율
+- 대중(민심) 투표 비율
+- 막대 그래프 / 원형 그래프를 통한 직관적인 비교
+
+---
+
+## 💬 댓글 기능
+- 투표별 댓글 작성 / 조회
+- 간단한 작성자 정보 기반 의견 공유
+
+---
+
+## 🛠 기술 스택 (Frontend)
+
+- **React** (Vite 기반)
+- **TypeScript**
+- **Nginx** (정적 파일 서빙 및 Reverse Proxy)
+- **AWS EC2** (Frontend 서버)
+
+---
+
+## 🌐 인프라 구조 (요약)
+
+- AWS VPC 내 Frontend / Backend / DB 분리
+- Frontend EC2는 퍼블릭 서브넷
+- Backend / DB는 프라이빗 서브넷
+- Nginx를 통한 Backend API Reverse Proxy 구조
+
+---
+
+## 🚀 실행 방법 (개발)
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 📦 빌드 및 배포
+```bash
+npm run build
 ```
+빌드 결과물은 Nginx를 통해 정적 파일로 서빙됩니다.
