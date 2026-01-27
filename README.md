@@ -25,16 +25,20 @@
 
 - 로고 + 슬로건
 - “투표하러 가기” CTA 버튼
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 31 08" src="https://github.com/user-attachments/assets/d9a72e41-b97a-42dd-be9c-08cf6337a280" />
+
 
 ### 2) 프로그램 선택 페이지
 
 - 프로그램 카드 리스트 (이미지 포함)
 - 프로그램 선택 → 투표 주제 선택으로 이동
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 29" src="https://github.com/user-attachments/assets/47a3102f-58d4-4a8e-9084-f93fc6f750c6" />
 
 ### 3) 투표 주제 선택 페이지
 
 - 회차/라운드/참가자 기반 필터링(프론트 UI 기준)
 - 주제 카드 선택 → 투표 페이지 이동
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 56" src="https://github.com/user-attachments/assets/28138350-cfe8-429e-ad5a-ba588ca3bed8" />
 
 ### 4) 투표 페이지
 
@@ -44,6 +48,7 @@
   - type 1: 1명 합격/불합격
   - type 2: 2명 A vs B
   - type 3+: 다자 선택 (확장 가능)
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 33 30" src="https://github.com/user-attachments/assets/432bb239-42a8-4182-b4cf-eae6881f9c6a" />
 
 ### 5) 결과 + 댓글 페이지
 
@@ -51,6 +56,7 @@
   - 총 투표수 + 각 항목 득표수 + 퍼센트 bar 표시
 - 방송 결과: 방송 결과가 없으면(null) 민심 결과만 표시
 - 댓글: 로그인 없이 id/pw 기반 작성 + (수정/삭제는 pw 검증 방식으로 연동 예정)
+<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 35 00" src="https://github.com/user-attachments/assets/503f7d1b-98e5-4b94-9dfd-f2b87b2f08d4" />
 
 ---
 
