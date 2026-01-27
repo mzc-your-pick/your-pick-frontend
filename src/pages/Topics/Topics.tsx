@@ -206,7 +206,7 @@ export default function Topics() {
             ← 프로그램
           </button>
           <div className="topics__brand" onClick={() => navigate("/")}>
-            your pick
+            Your Pick
           </div>
         </div>
 
@@ -346,7 +346,6 @@ export default function Topics() {
                   <div className="topic-card__meta">
                     <span className="topic-card__chip">{t.episode}회차</span>
                     <span className="topic-card__chip">{t.round}</span>
-                    <span className="topic-card__chip">type {t.vote_type}</span>
                   </div>
 
                   <div className="topic-card__title">{t.title}</div>

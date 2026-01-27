@@ -32,7 +32,10 @@ async function fetchResult(topicId: string): Promise<ResultDetail> {
       { label: "최강록", votes: 62 },
       { label: "요리괴물", votes: 38 },
     ],
-    broadcast_result: null,
+    broadcast_result: [
+      { label: "최강록", votes: 2 },
+      { label: "요리괴물", votes: 0 },
+    ],
   };
 }
 
@@ -41,9 +44,15 @@ async function fetchComments(topicId: string): Promise<Comment[]> {
   await new Promise((r) => setTimeout(r, 100));
   return [
     {
-      id: "c1",
+      id: "1",
       author: "user01",
-      content: "민심이 더 정확한 듯",
+      content: "최강록 최고!!!",
+      created_at: "2026-01-27",
+    },
+    {
+      id: "2",
+      author: "user02",
+      content: "민심과 방송 결과 모두 최강록을 선택했네~",
       created_at: "2026-01-27",
     },
   ];
@@ -317,6 +326,9 @@ export default function Result() {
           ← 뒤로
         </button>
         <h1>{result?.title ?? "결과"}</h1>
+        <div className="vote__brand" onClick={() => navigate("/")}>
+          Your Pick
+        </div>
       </header>
 
       <main className="result__main">

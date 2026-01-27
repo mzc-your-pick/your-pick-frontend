@@ -225,7 +225,7 @@ export default function Vote() {
           ← 뒤로
         </button>
         <div className="vote__brand" onClick={() => navigate("/")}>
-          your pick
+          Your Pick
         </div>
       </header>
 

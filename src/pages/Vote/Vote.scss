@@ -253,7 +253,7 @@
 
   &:hover {
     transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.28);
+    border-color: rgba(255, 255, 255, 0.55);
     opacity: 0.98;
   }
 
@@ -263,7 +263,7 @@
   }
 
   &.is-selected {
-    border-color: rgba(245, 247, 255, 0.55);
+    border-color: rgba(245, 247, 255, 0.8);
   }
 
   &__thumb {

@@ -64,7 +64,7 @@ export default function Programs() {
       <header className="programs__header">
         <div className="programs__top">
           <div className="programs__brand" onClick={() => navigate("/")}>
-            your pick
+            Your Pick
           </div>
         </div>
 
