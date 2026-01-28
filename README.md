@@ -25,7 +25,7 @@
 
   - /api/\* 요청은 Backend로 Reverse Proxy
 
-- Backend EC2 / DB: Private Subnet + NAT
+- Backend EC2 / DB: AWS RDS + MySQL
   - Frontend SG에서 Backend 포트만 허용 (Inbound 최소화)
 
 ---
