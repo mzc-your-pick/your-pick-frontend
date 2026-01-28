@@ -2,86 +2,59 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "./Vote.scss";
 
-type TopicDetail = {
-  id: string;
-  program_id: string;
+type ParticipantImage = {
+  id: number;
+  participant_name: string;
+  image_url: string;
+};
+
+type TopicDetailApi = {
+  id: number;
+  program_id: number;
+  topic_title: string;
   episode: number;
   match_type: string;
-  topic_title: string;
-  participants: string[]; // type1이면 1명, type2면 2명, ...
-  participant_images: string[]; // participants와 인덱스 매칭
+  participants: string[];
+  video_url: string | null;
+  vote_type: number; // 1=합/불, 2=2명, 3=3명 이상 다인원
+  actual_result: number | null;
   created_at: string;
-  vote_type: number; // 1=합/불, 2=2명, 3=3명, 4~n=n명
-  video_url: string;
-  actual_result?: string; // 투표 종료 후 실제 결과 (합격/불합격 or 우승자명 등)
+  participant_images: ParticipantImage[];
 };
 
 type VoteOption = {
-  key: string; // 제출용 키 (type1: PASS/FAIL, type2~: "0","1"...)
-  label: string; // 화면 표시
-  sub?: string; // type1에서 참가자명 같은 보조 텍스트
-  img?: string; // 카드 이미지
+  key: string; // 화면/디버그용 키 (PASS/FAIL 또는 "0","1"...)
+  label: string;
+  sub?: string;
+  img?: string;
+  vote_choice: number; // ✅ 서버로 보낼 값 (전부 1-based 규칙)
 };
 
-async function fetchTopicDetail(topicId: string): Promise<TopicDetail> {
-  // ✅ API 붙일 때 여기만 바꾸면 됨
-  // const res = await fetch(`/api/topics/${topicId}`);
-  // if (!res.ok) throw new Error("failed to fetch topic detail");
-  // return res.json();
-
-  // ---- 더미 ----
-  await new Promise((r) => setTimeout(r, 200));
-
-  if (topicId === "1") {
-    return {
-      id: "1",
-      program_id: "1",
-      episode: 1,
-      match_type: "1차 경연",
-      topic_title: "최강록 합격 여부",
-      participants: ["최강록"],
-      participant_images: ["/images/participants/chk.jpg"],
-      created_at: "2026-01-20T10:00:00.000Z",
-      vote_type: 1,
-      video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
-    };
-  }
-
-  if (topicId === "2") {
-    return {
-      id: "2",
-      program_id: "1",
-      episode: 1,
-      match_type: "1차 경연",
-      topic_title: "최강록 vs 요리괴물",
-      participants: ["최강록", "요리괴물"],
-      participant_images: [
-        "/images/participants/chk.jpg",
-        "/images/participants/monster.jpg",
-      ],
-      created_at: "2026-01-21T10:00:00.000Z",
-      vote_type: 2,
-      video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
-    };
-  }
-
-  return {
-    id: topicId,
-    program_id: "1",
-    episode: 2,
-    match_type: "파이널",
-    topic_title: "우승자는 누구?",
-    participants: ["최강록", "요리괴물", "술빚는 윤주모", "후덕죽"],
-    participant_images: [
-      "/images/participants/chk.jpg",
-      "/images/participants/monster.jpg",
-      "/images/participants/yjm.jpg",
-      "/images/participants/hdj.jpg",
-    ],
-    created_at: "2026-01-25T10:00:00.000Z",
-    vote_type: 4,
-    video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
+type VoteResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    id: number;
+    topic_id: number;
+    vote_choice: number;
+    voted_at: string;
   };
+};
+
+async function fetchJson<T>(
+  input: RequestInfo,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(input, {
+    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+    ...init,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`요청 실패 (${res.status})${text ? `: ${text}` : ""}`);
+  }
+  return (await res.json()) as T;
 }
 
 function toEmbedUrl(youtubeUrl: string) {
@@ -104,61 +77,121 @@ function toEmbedUrl(youtubeUrl: string) {
   }
 }
 
-function buildOptions(detail: TopicDetail): VoteOption[] {
-  // ✅ type1: 참가자 1명에 대한 합격/불합격
+function getImageForName(
+  participant_images: ParticipantImage[] | undefined,
+  name: string,
+) {
+  const list = Array.isArray(participant_images) ? participant_images : [];
+  const found = list.find((x) => x.participant_name === name);
+  return found?.image_url ?? "";
+}
+
+function buildOptions(detail: TopicDetailApi): VoteOption[] {
+  const participants = Array.isArray(detail.participants)
+    ? detail.participants
+    : [];
+  const imgs = Array.isArray(detail.participant_images)
+    ? detail.participant_images
+    : [];
+
+  // ✅ vote_type=1: 1=합격, 2=불합격
   if (detail.vote_type === 1) {
-    const targetName = detail.participants?.[0] ?? "참가자";
-    const targetImg = detail.participant_images?.[0] ?? "";
+    const targetName = participants[0] ?? "참가자";
+    const targetImg = getImageForName(imgs, targetName);
 
     return [
-      { key: "PASS", label: "합격", sub: targetName, img: targetImg },
-      { key: "FAIL", label: "불합격", sub: targetName, img: targetImg },
+      {
+        key: "PASS",
+        label: "합격",
+        sub: targetName,
+        img: targetImg,
+        vote_choice: 1,
+      },
+      {
+        key: "FAIL",
+        label: "불합격",
+        sub: targetName,
+        img: targetImg,
+        vote_choice: 2,
+      },
     ];
   }
 
-  // ✅ type2~n: 참가자 n명 중 1명 선택
-  return (detail.participants ?? []).map((name, idx) => ({
+  // ✅ vote_type=2 또는 vote_type=3(다인원): 1=1번 참가자, 2=2번 참가자, ...
+  return participants.map((name, idx) => ({
     key: String(idx),
     label: name,
-    img: detail.participant_images?.[idx] ?? "",
+    img: getImageForName(imgs, name),
+    vote_choice: idx + 1, // ✅ 1-based
   }));
 }
 
 export default function Vote() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const topicId = params.get("topic_id") ?? "";
+  const topicIdParam = params.get("topic_id") ?? "";
+  const topicId = Number(topicIdParam);
 
-  const [detail, setDetail] = useState<TopicDetail | null>(null);
+  const hasValidTopicId = Number.isFinite(topicId) && topicId > 0;
+
+  const [detail, setDetail] = useState<TopicDetailApi | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [selected, setSelected] = useState<number | null>(null);
 
+  // 투표 제출 상태
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!topicId) return;
+    if (!hasValidTopicId) return;
     let alive = true;
 
-    // topicId 바뀌면 초기화 (UX 깔끔하게)
+    // topicId 바뀌면 초기화
     setDetail(null);
     setError(null);
     setSelected(null);
+    setSubmitting(false);
+    setSubmitError(null);
 
-    fetchTopicDetail(topicId)
+    fetchJson<TopicDetailApi>(`/api/v1/topics/${topicId}`)
       .then((data) => {
         if (!alive) return;
-        setDetail(data);
+
+        // 최소 방어: null 가능 필드/배열
+        const cleaned: TopicDetailApi = {
+          ...data,
+          participants: Array.isArray(data.participants)
+            ? data.participants
+            : [],
+          participant_images: Array.isArray(data.participant_images)
+            ? data.participant_images
+            : [],
+          video_url: data.video_url ?? null,
+          actual_result:
+            data.actual_result === undefined || data.actual_result === null
+              ? null
+              : Number(data.actual_result),
+        };
+
+        setDetail(cleaned);
       })
-      .catch(() => {
+      .catch((e: any) => {
         if (!alive) return;
-        setError("failed");
+        setError(e?.message ?? "failed");
       });
 
     return () => {
       alive = false;
     };
-  }, [topicId]);
+  }, [hasValidTopicId, topicId]);
 
-  const loading = !!topicId && !detail && !error;
-  const embedUrl = detail ? toEmbedUrl(detail.video_url) : "";
+  const loading = hasValidTopicId && !detail && !error;
+
+  const embedUrl = useMemo(() => {
+    if (!detail?.video_url) return "";
+    return toEmbedUrl(detail.video_url);
+  }, [detail?.video_url]);
 
   const options = useMemo(() => {
     if (!detail) return [];
@@ -166,31 +199,55 @@ export default function Vote() {
   }, [detail]);
 
   const gridColsClass = useMemo(() => {
-    // 모바일은 1열 고정, 태블릿부터 옵션 수에 따라 2~3열
-    // 클래스는 SCSS에서 처리
     const n = options.length;
     if (n <= 1) return "vote__grid--1";
     if (n === 2) return "vote__grid--2";
     return "vote__grid--3";
   }, [options.length]);
 
-  const canSubmit = selected !== null && options[selected];
+  const canSubmit = !submitting && selected !== null && !!options[selected];
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!detail || selected === null) return;
     const choice = options[selected];
     if (!choice) return;
 
-    // ✅ 나중에 여기서 POST 투표 요청
-    // 지금은 결과 페이지로 이동만
-    const sp = new URLSearchParams({
-      topic_id: detail.id,
-      choice_key: choice.key, // PASS/FAIL 또는 "0","1","2"...
-    });
-    navigate(`/result?${sp.toString()}`);
+    try {
+      setSubmitting(true);
+      setSubmitError(null);
+
+      const body = { vote_choice: choice.vote_choice };
+
+      const res = await fetchJson<VoteResponse>(
+        `/api/v1/topics/${detail.id}/votes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+
+      if (!res.success) {
+        throw new Error(res.message || "투표에 실패했어요.");
+      }
+
+      // ✅ 투표 성공 후 Result로 이동
+      // 기존 result 페이지가 topic_id/choice_key를 쓰고 있으니 유지 + vote_choice도 전달
+      const sp = new URLSearchParams({
+        topic_id: String(detail.id),
+        choice_key: choice.key,
+        vote_choice: String(choice.vote_choice),
+      });
+
+      navigate(`/result?${sp.toString()}`);
+    } catch (e: any) {
+      setSubmitError(e?.message ?? "투표에 실패했어요.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (!topicId) {
+  if (!hasValidTopicId) {
     return (
       <div className="vote">
         <header className="vote__header">
@@ -247,7 +304,6 @@ export default function Vote() {
               <div className="vote__chips">
                 <span className="vote__chip">{detail.episode}회차</span>
                 <span className="vote__chip">{detail.match_type}</span>
-                {/* <span className="vote__chip">type {detail.vote_type}</span> */}
               </div>
 
               <h1 className="vote__topic_title">{detail.topic_title}</h1>
@@ -284,6 +340,7 @@ export default function Vote() {
                     type="button"
                     className={`pick-card ${selected === idx ? "is-selected" : ""}`}
                     onClick={() => setSelected(idx)}
+                    disabled={submitting}
                   >
                     <div className="pick-card__thumb">
                       {opt.img ? (
@@ -324,12 +381,12 @@ export default function Vote() {
                   onClick={onSubmit}
                   disabled={!canSubmit}
                 >
-                  투표하기
+                  {submitting ? "투표 제출 중…" : "투표하기"}
                 </button>
 
-                <div className="vote__notice">
-                  * 실제 투표 제출 API 연결 전이라 결과 페이지로 이동만 합니다.
-                </div>
+                {submitError ? (
+                  <div className="vote__notice">{submitError}</div>
+                ) : null}
               </div>
             </section>
           </>
