@@ -1,7 +1,7 @@
 # Your Pick Frontend
 
 서바이벌 프로그램의 대결 결과를  
-**“패널 선택(방송 결과)”vs"대중 투표(민심)"** 로 비교해주는 웹 서비스 **Your Pick**의 프론트엔드 레포지토리입니다.
+**“방송 결과(패널/방송 승자)”vs"대중 투표(민심)"** 로 비교해주는 웹 서비스 **Your Pick**의 프론트엔드 레포지토리입니다.
 
 - 대상 프로그램 예시: 흑백요리사, 피지컬100, 쇼미더머니, 스우파 등
 - 목적: 투표 참여 + 결과 비교 시각화 + 댓글 토론
@@ -11,11 +11,22 @@
 ## Tech Stack
 
 - React (Vite)
+- TypeScript
 - SCSS (Sass, nesting 스타일)
-- Nginx (EC2 배포)
+- Nginx (EC2 배포, SPA 라우팅 + API Reverse Proxy)
 - Node.js / npm
 
-> TypeScript를 사용하지만, 구현 단계에서는 타입 엄격성보다 개발 속도를 우선합니다.
+---
+
+## Architecture (AWS VPC)
+
+- Frontend EC2: Public Subnet + IGW
+  - Nginx로 dist/ 정적 서빙
+
+  - /api/\* 요청은 Backend로 Reverse Proxy
+
+- Backend EC2 / DB: Private Subnet + NAT
+  - Frontend SG에서 Backend 포트만 허용 (Inbound 최소화)
 
 ---
 
@@ -25,94 +36,265 @@
 
 - 로고 + 슬로건
 - “투표하러 가기” CTA 버튼
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 31 08" src="https://github.com/user-attachments/assets/d9a72e41-b97a-42dd-be9c-08cf6337a280" />
-
+  <img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 31 08" src="https://github.com/user-attachments/assets/d9a72e41-b97a-42dd-be9c-08cf6337a280" />
 
 ### 2) 프로그램 선택 페이지
 
 - 프로그램 카드 리스트 (이미지 포함)
-- 프로그램 선택 → 투표 주제 선택으로 이동
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 29" src="https://github.com/user-attachments/assets/47a3102f-58d4-4a8e-9084-f93fc6f750c6" />
+- 프로그램 선택 → `program_id`를 쿼리로 넘겨 Topics로 이동
+  <img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 29" src="https://github.com/user-attachments/assets/47a3102f-58d4-4a8e-9084-f93fc6f750c6" />
 
 ### 3) 투표 주제 선택 페이지
 
-- 회차/라운드/참가자 기반 필터링(프론트 UI 기준)
-- 주제 카드 선택 → 투표 페이지 이동
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 56" src="https://github.com/user-attachments/assets/28138350-cfe8-429e-ad5a-ba588ca3bed8" />
+- `program_id` 기반으로 주제 리스트 로드
+- 회차/라운드/참가자/키워드 필터 + 정렬
+- 주제 카드 선택 → Vote로 이동 (topic_id 전달)
+  <img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 32 56" src="https://github.com/user-attachments/assets/28138350-cfe8-429e-ad5a-ba588ca3bed8" />
 
 ### 4) 투표 페이지
 
-- URL로 `topic_id`를 받아 상세 로딩
-- 유튜브 링크(대결 영상) 임베드
+- `topic_id`로 주제 상세 로드
+- 유튜브 embed (video_url 없으면 안내)
 - `vote_type`에 따라 투표 UI 형태 분기
-  - type 1: 1명 합격/불합격
-  - type 2: 2명 A vs B
-  - type 3+: 다자 선택 (확장 가능)
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 33 30" src="https://github.com/user-attachments/assets/432bb239-42a8-4182-b4cf-eae6881f9c6a" />
+  - type 1: 1명 합격/불합격 (vote_choice: 1=합격, 2=불합격)
+  - type 2: 2명 A vs B (vote_choice: 1=1번 참가자, 2=2번 참가자)
+  - type 3: 3인 이상 다자 선택 (vote_choice: 1~N)
+    <img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 33 30" src="https://github.com/user-attachments/assets/432bb239-42a8-4182-b4cf-eae6881f9c6a" />
 
 ### 5) 결과 + 댓글 페이지
 
-- 민심 결과: 득표수 기반 퍼센트 계산(프론트)
-  - 총 투표수 + 각 항목 득표수 + 퍼센트 bar 표시
-- 방송 결과: 방송 결과가 없으면(null) 민심 결과만 표시
-- 댓글: 로그인 없이 id/pw 기반 작성 + (수정/삭제는 pw 검증 방식으로 연동 예정)
-<img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 37 25" src="https://github.com/user-attachments/assets/f641ad95-27ad-43c8-809b-5b833e9d5db6" />
+- 민심 결과: 백엔드 집계 결과 기반 퍼센트 bar 표시
+
+- 방송 결과: 득표수 없이 “승자만” 표시 + 민심과 일치 여부 표시
+
+- 댓글: 로그인 없이 id/pw 기반 작성 + 삭제(pw 검증)
+
+- 댓글 시간 표시: 몇초/몇분/몇시간 전, 하루 이상은 날짜 표시
+  <img width="1344" height="840" alt="스크린샷 2026-01-27 오후 4 37 25" src="https://github.com/user-attachments/assets/f641ad95-27ad-43c8-809b-5b833e9d5db6" />
 
 ---
 
-## API Contract (Draft)
+## API Contract
 
-> 백엔드 확정 전 임시 스펙(연동 시 변경될 수 있음)
+> 프론트는 기본적으로 /api 경로로 호출하고, Nginx가 백엔드로 프록시합니다.
+> (예: 브라우저에서는 /api/v1/... 형태로 요청)
 
 ### Program
 
-```js
+#### GET Program List
+
+- GET `/api/vi/programs`
+
+#### GET Program Detail
+
+- GET `/api/v1/programs/{program_id}`
+
+Response:
+
+```json
 {
-  id: "1",
-  title: "흑백요리사2",
-  subtitle: "셰프들의 승부, 민심은 누구 편?",
-  status: "ONGOING",
-  img_url: "/~.jpg"
+  "id": 1,
+  "title": "흑백요리사",
+  "description": "넷플릭스 요리 서바이벌",
+  "status": "방영중",
+  "image_url": null,
+  "created_at": "2026-01-27T07:42:38"
 }
 ```
 
-### Topic
+### Topics
 
-```js
+#### GET Topic List (by program_id)
+
+- GET `/api/v1/topics?program_id=1`
+
+Response:
+
+```json
+[
+  {
+    "id": 1,
+    "program_id": 1,
+    "topic_title": "최강록 VS 요리괴물",
+    "episode": 1,
+    "match_type": "1대1",
+    "participants": ["최강록", "요리괴물"],
+    "video_url": null,
+    "vote_type": 2,
+    "actual_result": 1,
+    "created_at": "2026-01-27T07:42:38",
+    "participant_images": [
+      {
+        "id": 2,
+        "participant_name": "요리괴물",
+        "image_url": "https://example.com/chef2.jpg"
+      },
+      {
+        "id": 1,
+        "participant_name": "최강록",
+        "image_url": "https://example.com/chef1.jpg"
+      }
+    ]
+  }
+]
+```
+
+#### GET Topic Detail
+
+- GET `/api/v1/topics/{topic_id}`
+  Response(에시):
+
+```json
 {
-  id: "1",
-  program_id: "1",
-  episode: 1,
-  round: "1차 경연",
-  title: "최강록 vs 요리괴물",
-  participants: ["최강록", "요리괴물"],
-  created_at: "2026-01-20T10:00:00.000Z",
-  vote_type: 2
+  "id": 1,
+  "program_id": 1,
+  "topic_title": "최강록 VS 요리괴물",
+  "episode": 1,
+  "match_type": "1대1",
+  "participants": ["최강록", "요리괴물"],
+  "video_url": null,
+  "vote_type": 2,
+  "actual_result": 1,
+  "created_at": "2026-01-27T07:42:38",
+  "participant_images": [
+    {
+      "id": 1,
+      "participant_name": "최강록",
+      "image_url": "https://example.com/chef1.jpg"
+    },
+    {
+      "id": 2,
+      "participant_name": "요리괴물",
+      "image_url": "https://example.com/chef2.jpg"
+    }
+  ]
 }
 ```
 
-### Vote Detail (Draft)
+### Votes
 
-- youtube_url: 대결 영상 URL
-- participants_imgs: 참가자 이미지 배열(선택 사항)
+#### POST Vote
+
+- POST `/api/v1/topics/{topic_id}/votes`
+  vote_choice 규칙:
+
+* vote_type=1 → 1=합격, 2=불합격
+
+* vote_type=2 → 1=1번 참가자, 2=2번 참가자
+
+* vote_type=3(다인원) → 1~N=참가자 순번
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "string",
+  "data": {
+    "id": 0,
+    "topic_id": 0,
+    "vote_choice": 0,
+    "voted_at": "2026-01-28T02:44:33.561Z"
+  }
+}
+```
+
+> **중요** : 댓글 작성은 vote_id가 필요하므로, 투표 성공 후 Result로 이동할 때 vote_id를 쿼리에 포함합니다.
+> 예: /result?topic_id=1&vote_id=123
 
 ### Result (권장 형태)
 
-> 퍼센트는 파생값이므로 프론트에서 계산합니다.
+#### GET Result
 
-```js
-public_result: [
-  { label: "최강록", votes: 62 },
-  { label: "요리괴물", votes: 38 }
-],
-broadcast_result: null // 또는 동일 구조
+- GET `/api/v1/topics/{topic_id}/results`
+  Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "topic_id": 1,
+    "topic_title": "최강록 VS 요리괴물",
+    "vote_type": 2,
+    "actual_result": 1,
+    "public_votes": {
+      "total": 1,
+      "results": {
+        "1": { "count": 1, "percent": 100 }
+      }
+    },
+    "participants": ["최강록", "요리괴물"],
+    "match": true
+  },
+  "error": null,
+  "message": null
+}
 ```
 
-### Comment (Draft)
+- `public_votes.results`의 key `"1"`, `"2"`… 는 `vote_choice`(1-based) 의미
 
-- Create: { author, password, content }
+- 방송 결과는 득표수가 아니라 `actual_result`(승자)만 제공됨 → 프론트는 “승자만 표시”
 
-- Edit/Delete: { password } 기반 검증 후 처리(백엔드에서 401/403 응답)
+### Comments
+
+#### GET Comment List
+
+- GET `/api/v1/topics/{topic_id}/comments`
+  Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 0,
+      "vote_id": 0,
+      "content": "string",
+      "comment_user_name": "string",
+      "created_at": "2026-01-28T03:08:27.288Z"
+    }
+  ],
+  "total": 0
+}
+```
+
+#### POST Comment (Create)
+
+- POST `/api/v1/votes/{vote_id}/comments`
+  Body:
+
+```json
+{
+  "content": "string",
+  "comment_user_name": "string",
+  "comment_password": "string"
+}
+```
+
+Response:
+
+```json
+{
+  "id": 0,
+  "vote_id": 0,
+  "content": "string",
+  "comment_user_name": "string",
+  "created_at": "2026-01-28T03:13:27.075Z"
+}
+```
+
+#### DELETE Comment
+
+- DELETE `/api/v1/comments/{comment_id}`
+  Body:
+
+```json
+{
+  "comment_password": "string"
+}
+```
+
+> 댓글 수정은 현재 프론트에서 제외(삭제만 지원)
 
 ---
 
@@ -146,11 +328,11 @@ npm run build
 
 ### Nginx serving (요약)
 
-- 정적 파일: dist/ 서빙
+- 정적 파일: `dist/` 서빙
 
-- SPA 라우팅: try_files ... /index.html fallback 필요
+- SPA 라우팅: `try_files ... /index.html` fallback 필요
 
-- (추후) /api 경로는 백엔드로 reverse proxy 예정
+- API 프록시: `/api/*` → Private Subnet Backend로 reverse proxy
 
 > 운영 정석: /var/www/... 아래로 dist를 이동해 서빙하는 방식 권장
 
