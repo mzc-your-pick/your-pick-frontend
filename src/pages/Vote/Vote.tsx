@@ -6,13 +6,14 @@ type TopicDetail = {
   id: string;
   program_id: string;
   episode: number;
-  round: string;
-  title: string;
+  match_type: string;
+  topic_title: string;
   participants: string[]; // type1이면 1명, type2면 2명, ...
-  participants_imgs: string[]; // participants와 인덱스 매칭
+  participant_images: string[]; // participants와 인덱스 매칭
   created_at: string;
   vote_type: number; // 1=합/불, 2=2명, 3=3명, 4~n=n명
-  youtube_url: string;
+  video_url: string;
+  actual_result?: string; // 투표 종료 후 실제 결과 (합격/불합격 or 우승자명 등)
 };
 
 type VoteOption = {
@@ -36,13 +37,13 @@ async function fetchTopicDetail(topicId: string): Promise<TopicDetail> {
       id: "1",
       program_id: "1",
       episode: 1,
-      round: "1차 경연",
-      title: "최강록 합격 여부",
+      match_type: "1차 경연",
+      topic_title: "최강록 합격 여부",
       participants: ["최강록"],
-      participants_imgs: ["/images/participants/chk.jpg"],
+      participant_images: ["/images/participants/chk.jpg"],
       created_at: "2026-01-20T10:00:00.000Z",
       vote_type: 1,
-      youtube_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
+      video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
     };
   }
 
@@ -51,16 +52,16 @@ async function fetchTopicDetail(topicId: string): Promise<TopicDetail> {
       id: "2",
       program_id: "1",
       episode: 1,
-      round: "1차 경연",
-      title: "최강록 vs 요리괴물",
+      match_type: "1차 경연",
+      topic_title: "최강록 vs 요리괴물",
       participants: ["최강록", "요리괴물"],
-      participants_imgs: [
+      participant_images: [
         "/images/participants/chk.jpg",
         "/images/participants/monster.jpg",
       ],
       created_at: "2026-01-21T10:00:00.000Z",
       vote_type: 2,
-      youtube_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
+      video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
     };
   }
 
@@ -68,10 +69,10 @@ async function fetchTopicDetail(topicId: string): Promise<TopicDetail> {
     id: topicId,
     program_id: "1",
     episode: 2,
-    round: "파이널",
-    title: "우승자는 누구?",
+    match_type: "파이널",
+    topic_title: "우승자는 누구?",
     participants: ["최강록", "요리괴물", "술빚는 윤주모", "후덕죽"],
-    participants_imgs: [
+    participant_images: [
       "/images/participants/chk.jpg",
       "/images/participants/monster.jpg",
       "/images/participants/yjm.jpg",
@@ -79,7 +80,7 @@ async function fetchTopicDetail(topicId: string): Promise<TopicDetail> {
     ],
     created_at: "2026-01-25T10:00:00.000Z",
     vote_type: 4,
-    youtube_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
+    video_url: "https://www.youtube.com/watch?v=YUoquCDRSvE&t=1s",
   };
 }
 
@@ -107,7 +108,7 @@ function buildOptions(detail: TopicDetail): VoteOption[] {
   // ✅ type1: 참가자 1명에 대한 합격/불합격
   if (detail.vote_type === 1) {
     const targetName = detail.participants?.[0] ?? "참가자";
-    const targetImg = detail.participants_imgs?.[0] ?? "";
+    const targetImg = detail.participant_images?.[0] ?? "";
 
     return [
       { key: "PASS", label: "합격", sub: targetName, img: targetImg },
@@ -119,7 +120,7 @@ function buildOptions(detail: TopicDetail): VoteOption[] {
   return (detail.participants ?? []).map((name, idx) => ({
     key: String(idx),
     label: name,
-    img: detail.participants_imgs?.[idx] ?? "",
+    img: detail.participant_images?.[idx] ?? "",
   }));
 }
 
@@ -157,7 +158,7 @@ export default function Vote() {
   }, [topicId]);
 
   const loading = !!topicId && !detail && !error;
-  const embedUrl = detail ? toEmbedUrl(detail.youtube_url) : "";
+  const embedUrl = detail ? toEmbedUrl(detail.video_url) : "";
 
   const options = useMemo(() => {
     if (!detail) return [];
@@ -245,11 +246,11 @@ export default function Vote() {
             <section className="vote__meta">
               <div className="vote__chips">
                 <span className="vote__chip">{detail.episode}회차</span>
-                <span className="vote__chip">{detail.round}</span>
+                <span className="vote__chip">{detail.match_type}</span>
                 {/* <span className="vote__chip">type {detail.vote_type}</span> */}
               </div>
 
-              <h1 className="vote__title">{detail.title}</h1>
+              <h1 className="vote__topic_title">{detail.topic_title}</h1>
               <p className="vote__desc">
                 영상 확인 후 아래에서 하나를 선택해 투표하세요.
               </p>
@@ -272,7 +273,7 @@ export default function Vote() {
 
             <section className="vote__panel">
               <div className="vote__panelHead">
-                <h2 className="vote__panelTitle">투표하기</h2>
+                <h2 className="vote__paneltopic_Title">투표하기</h2>
                 <span className="vote__panelHint">한 가지만 선택 가능</span>
               </div>
 
