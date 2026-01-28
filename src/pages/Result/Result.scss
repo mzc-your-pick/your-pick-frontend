@@ -40,6 +40,19 @@
     }
   }
 
+  /* ✅ Result.tsx가 header 안에서 쓰는 브랜드 클래스 */
+  :global(.vote__brand) {
+    cursor: pointer;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: rgba(245, 247, 255, 0.9);
+    user-select: none;
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
   &__main {
     flex: 1;
     width: 100%;
@@ -91,6 +104,53 @@
   &__bars {
     display: grid;
     gap: 12px;
+  }
+
+  /* ✅ 방송결과가 "승자만" 표시될 때 사용할 보조 UI */
+  &__winnerRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  &__winner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__winnerChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(245, 247, 255, 0.92);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+  }
+
+  &__winnerNote {
+    font-size: 12px;
+    font-weight: 800;
+    color: rgba(245, 247, 255, 0.6);
+    white-space: nowrap;
+  }
+
+  &__winnerChip--match {
+    border-color: rgba(180, 255, 180, 0.22);
+    color: rgba(210, 255, 210, 0.92);
+  }
+
+  &__winnerChip--mismatch {
+    border-color: rgba(255, 180, 180, 0.22);
+    color: rgba(255, 210, 210, 0.92);
   }
 }
 
@@ -170,6 +230,11 @@
 
     &:focus {
       border-color: rgba(245, 247, 255, 0.32);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
   }
 
@@ -293,7 +358,7 @@
   }
 }
 
-/* ===== Modal ===== */
+/* ===== Modal (삭제 전용) ===== */
 .modal {
   position: fixed;
   inset: 0;
@@ -330,8 +395,7 @@
     line-height: 1.5;
   }
 
-  &__input,
-  &__textarea {
+  &__input {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.14);
     color: rgba(245, 247, 255, 0.92);
@@ -347,12 +411,6 @@
     &:focus {
       border-color: rgba(245, 247, 255, 0.32);
     }
-  }
-
-  &__textarea {
-    min-height: 110px;
-    resize: vertical;
-    line-height: 1.5;
   }
 
   &__error {

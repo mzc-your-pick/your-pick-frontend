@@ -2,122 +2,190 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "./Result.scss";
 
+/* ======================
+   Types (API 스펙 반영)
+====================== */
+
+type ApiResultResponse = {
+  success: boolean;
+  data: {
+    topic_id: number;
+    topic_title: string;
+    vote_type: number; // 1=합/불, 2=2명, 3=3명 이상(다인원)
+    actual_result: number | null; // type1: 1=합격 2=불합격 / type2~: 1=1번 참가자...
+    public_votes: {
+      total: number;
+      results: Record<
+        string, // "1","2","3"... vote_choice(1-based)
+        {
+          count: number;
+          percent: number; // 0~100 (정수/실수 가능)
+        }
+      >;
+    };
+    participants: string[];
+    match: boolean;
+  } | null;
+  error: any;
+  message: string | null;
+};
+
+type ApiCommentListResponse = {
+  success: boolean;
+  data: ApiComment[];
+  total: number;
+};
+
+type ApiComment = {
+  id: number;
+  vote_id: number;
+  content: string;
+  comment_user_name: string;
+  created_at: string; // ISO
+};
+
 type ResultItem = {
   label: string;
   votes: number;
+  percent?: number;
 };
 
 type ResultDetail = {
   title: string;
   public_result: ResultItem[];
-  broadcast_result: ResultItem[] | null;
+  total_public: number;
+
+  vote_type: number;
+  participants: string[];
+  actual_result: number | null;
+  match: boolean;
 };
 
 type Comment = {
-  id: string; // 서버가 발급하는 댓글 ID (수정/삭제에 필요)
-  author: string; // 사용자가 입력한 id(닉네임)
+  id: number;
+  vote_id: number;
+  author: string;
   content: string;
   created_at: string;
 };
 
 /* ======================
-   API (나중에 실제 엔드포인트로 교체)
+   API Helpers
 ====================== */
-async function fetchResult(topicId: string): Promise<ResultDetail> {
-  console.log("topicId:", topicId);
-  await new Promise((r) => setTimeout(r, 100));
+
+async function fetchJson<T>(
+  input: RequestInfo,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(input, {
+    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+    ...init,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`요청 실패 (${res.status})${text ? `: ${text}` : ""}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function fetchResult(topicId: number): Promise<ResultDetail> {
+  const r = await fetchJson<ApiResultResponse>(
+    `/api/v1/topics/${topicId}/results`,
+  );
+  if (!r.success || !r.data) throw new Error("failed_result");
+
+  const d = r.data;
+
+  // public_votes.results: { "1": {count, percent}, ... }
+  // 참가자 전체를 기준으로 results가 빠진 항목도 0표로 채워서 UI 안정화
+  const resultsMap = d.public_votes?.results ?? {};
+  const participants = Array.isArray(d.participants) ? d.participants : [];
+
+  const public_result: ResultItem[] = participants.map((name, idx) => {
+    const key = String(idx + 1); // vote_choice is 1-based
+    const r = resultsMap[key];
+    return {
+      label: name,
+      votes: Number(r?.count ?? 0) || 0,
+      percent: r?.percent,
+    };
+  });
+
+  // 득표순 정렬(원하면 원래 순서 유지로 바꿔도 됨)
+  public_result.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
+
   return {
-    title: "최강록 vs 요리괴물",
-    public_result: [
-      { label: "최강록", votes: 62 },
-      { label: "요리괴물", votes: 38 },
-    ],
-    broadcast_result: [
-      { label: "최강록", votes: 2 },
-      { label: "요리괴물", votes: 0 },
-    ],
+    title: d.topic_title,
+    public_result,
+    total_public: Number(d.public_votes?.total) || 0,
+
+    vote_type: d.vote_type,
+    participants,
+    actual_result: d.actual_result ?? null,
+    match: !!d.match,
   };
 }
 
-async function fetchComments(topicId: string): Promise<Comment[]> {
-  console.log("topicId:", topicId);
-  await new Promise((r) => setTimeout(r, 100));
-  return [
-    {
-      id: "1",
-      author: "user01",
-      content: "최강록 최고!!!",
-      created_at: "2026-01-27",
-    },
-    {
-      id: "2",
-      author: "user02",
-      content: "민심과 방송 결과 모두 최강록을 선택했네~",
-      created_at: "2026-01-27",
-    },
-  ];
+async function fetchComments(topicId: number): Promise<Comment[]> {
+  const r = await fetchJson<ApiCommentListResponse>(
+    `/api/v1/topics/${topicId}/comments`,
+  );
+  if (!r.success) throw new Error("failed_comments");
+
+  return (Array.isArray(r.data) ? r.data : []).map((c) => ({
+    id: c.id,
+    vote_id: c.vote_id,
+    author: c.comment_user_name,
+    content: c.content,
+    created_at: c.created_at,
+  }));
 }
 
-// ✅ 댓글 생성: author(id) + password + content를 서버로 보냄
+// POST /api/v1/votes/{vote_id}/comments
 async function createComment(
-  topicId: string,
-  payload: { author: string; password: string; content: string },
-) {
-  console.log("topicId:", topicId);
+  voteId: number,
+  payload: {
+    comment_user_name: string;
+    comment_password: string;
+    content: string;
+  },
+): Promise<Comment> {
+  const created = await fetchJson<ApiComment>(
+    `/api/v1/votes/${voteId}/comments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
 
-  // TODO: 실제 API로 교체
-  // return fetch(`/api/topics/${topicId}/comments`, { method:"POST", headers:{...}, body: JSON.stringify(payload)})
-  await new Promise((r) => setTimeout(r, 150));
-
-  // 서버가 생성한 댓글을 반환한다고 가정
-  const now = new Date().toISOString();
   return {
-    id: `c_${Date.now()}`,
-    author: payload.author,
-    content: payload.content,
-    created_at: now.slice(0, 10),
-  } satisfies Comment;
+    id: created.id,
+    vote_id: created.vote_id,
+    author: created.comment_user_name,
+    content: created.content,
+    created_at: created.created_at,
+  };
 }
 
-// ✅ 댓글 수정: password 검증 포함
-async function updateComment(
-  commentId: string,
-  payload: { password: string; content: string },
+// DELETE /api/v1/comments/{comment_id}
+async function deleteComment(
+  commentId: number,
+  payload: { comment_password: string },
 ) {
-  console.log("commentId:", commentId);
-
-  // TODO: 실제 API로 교체
-  await new Promise((r) => setTimeout(r, 150));
-
-  // 틀린 비번 시 서버에서 401/403을 내린다고 가정
-  // 여기서는 예시로 password가 "1234"가 아니면 실패
-  if (payload.password !== "1234") {
-    const err: any = new Error("wrong_password");
-    err.status = 403;
-    throw err;
-  }
-
-  return true;
-}
-
-// ✅ 댓글 삭제: password 검증 포함
-async function deleteComment(commentId: string, payload: { password: string }) {
-  console.log("commentId:", commentId);
-  // TODO: 실제 API로 교체
-  await new Promise((r) => setTimeout(r, 150));
-
-  if (payload.password !== "1234") {
-    const err: any = new Error("wrong_password");
-    err.status = 403;
-    throw err;
-  }
-
+  await fetchJson<{ success?: boolean }>(`/api/v1/comments/${commentId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   return true;
 }
 
 /* ======================
    Utils
 ====================== */
+
 function prettyLabel(label: string) {
   if (label === "PASS") return "합격";
   if (label === "FAIL") return "불합격";
@@ -133,16 +201,50 @@ function calcPercent(votes: number, total: number) {
   return Math.round((votes / total) * 1000) / 10; // 소수 1자리
 }
 
+// "몇초 전/몇분 전/몇시간 전", 24시간 넘으면 날짜
+function formatRelativeOrDate(iso: string) {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return iso;
+
+  const now = Date.now();
+  const diffMs = now - t;
+  const diffSec = Math.floor(diffMs / 1000);
+
+  if (diffSec < 0) return new Date(iso).toLocaleString("ko-KR");
+
+  if (diffSec < 60) return `${diffSec}초 전`;
+
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}시간 전`;
+
+  return new Date(iso).toLocaleDateString("ko-KR");
+}
+
+function getWinnerLabel(result: ResultDetail): string {
+  const ar = result.actual_result;
+  if (!ar) return "정보 없음";
+
+  // type1: 1=합격 2=불합격
+  if (result.vote_type === 1) {
+    return ar === 1 ? "합격" : "불합격";
+  }
+
+  // type2~: 1-based index
+  const idx = ar - 1;
+  return result.participants?.[idx] ?? "승자";
+}
+
 /* ======================
    Page
 ====================== */
-type ModalMode = "edit" | "delete";
+
 type ModalState = {
   open: boolean;
-  mode: ModalMode;
   target: Comment | null;
   password: string;
-  content: string; // edit용
   error: string | null;
   busy: boolean;
 };
@@ -150,7 +252,12 @@ type ModalState = {
 export default function Result() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const topicId = params.get("topic_id") ?? "";
+
+  const topicId = Number(params.get("topic_id") ?? "");
+  const voteId = Number(params.get("vote_id") ?? params.get("voteId") ?? "");
+
+  const hasValidTopicId = Number.isFinite(topicId) && topicId > 0;
+  const hasValidVoteId = Number.isFinite(voteId) && voteId > 0;
 
   const [result, setResult] = useState<ResultDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -163,19 +270,17 @@ export default function Result() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitBusy, setSubmitBusy] = useState(false);
 
-  // 수정/삭제 모달
+  // 삭제 모달
   const [modal, setModal] = useState<ModalState>({
     open: false,
-    mode: "edit",
     target: null,
     password: "",
-    content: "",
     error: null,
     busy: false,
   });
 
   useEffect(() => {
-    if (!topicId) return;
+    if (!hasValidTopicId) return;
 
     setError(null);
     setResult(null);
@@ -186,14 +291,17 @@ export default function Result() {
         setComments(cs);
       })
       .catch(() => setError("failed"));
-  }, [topicId]);
+  }, [hasValidTopicId, topicId]);
 
-  const totalPublic = useMemo(
-    () => (result ? calcTotal(result.public_result) : 0),
-    [result],
-  );
+  const totalPublic = useMemo(() => {
+    if (!result) return 0;
+    // API total 우선
+    if (Number.isFinite(result.total_public)) return result.total_public;
+    return calcTotal(result.public_result);
+  }, [result]);
 
-  const canSubmit = author.trim() && pw.trim() && commentText.trim();
+  const canSubmit =
+    author.trim() && pw.trim() && commentText.trim() && hasValidVoteId;
 
   const onSubmitComment = async () => {
     if (!canSubmit || submitBusy) return;
@@ -202,9 +310,9 @@ export default function Result() {
     setSubmitBusy(true);
 
     try {
-      const created = await createComment(topicId, {
-        author: author.trim(),
-        password: pw.trim(),
+      const created = await createComment(voteId, {
+        comment_user_name: author.trim(),
+        comment_password: pw.trim(),
         content: commentText.trim(),
       });
 
@@ -212,32 +320,18 @@ export default function Result() {
       setAuthor("");
       setPw("");
       setCommentText("");
-    } catch {
-      setSubmitError("댓글 등록에 실패했어요.");
+    } catch (e: any) {
+      setSubmitError(e?.message ?? "댓글 등록에 실패했어요.");
     } finally {
       setSubmitBusy(false);
     }
   };
 
-  const openEdit = (c: Comment) => {
-    setModal({
-      open: true,
-      mode: "edit",
-      target: c,
-      password: "",
-      content: c.content,
-      error: null,
-      busy: false,
-    });
-  };
-
   const openDelete = (c: Comment) => {
     setModal({
       open: true,
-      mode: "delete",
       target: c,
       password: "",
-      content: "",
       error: null,
       busy: false,
     });
@@ -254,8 +348,9 @@ export default function Result() {
     }));
   };
 
-  const confirmModal = async () => {
+  const confirmDelete = async () => {
     if (!modal.target || modal.busy) return;
+
     const password = modal.password.trim();
     if (!password) {
       setModal((m) => ({ ...m, error: "비밀번호를 입력해줘." }));
@@ -265,45 +360,19 @@ export default function Result() {
     setModal((m) => ({ ...m, busy: true, error: null }));
 
     try {
-      if (modal.mode === "edit") {
-        const nextContent = modal.content.trim();
-        if (!nextContent) {
-          setModal((m) => ({
-            ...m,
-            busy: false,
-            error: "수정할 내용을 입력해줘.",
-          }));
-          return;
-        }
-
-        await updateComment(modal.target.id, {
-          password,
-          content: nextContent,
-        });
-
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === modal.target!.id ? { ...c, content: nextContent } : c,
-          ),
-        );
-        closeModal();
-      } else {
-        await deleteComment(modal.target.id, { password });
-        setComments((prev) => prev.filter((c) => c.id !== modal.target!.id));
-        closeModal();
-      }
-    } catch (e: any) {
-      // 서버에서 401/403이면 비밀번호 오류로 처리
+      await deleteComment(modal.target.id, { comment_password: password });
+      setComments((prev) => prev.filter((c) => c.id !== modal.target!.id));
+      closeModal();
+    } catch {
       setModal((m) => ({
         ...m,
         busy: false,
         error: "비밀번호가 틀렸거나 권한이 없어요.",
       }));
-      return;
     }
   };
 
-  if (!topicId) {
+  if (!hasValidTopicId) {
     return (
       <div className="result">
         <header className="result__header">
@@ -339,6 +408,7 @@ export default function Result() {
 
         {result && (
           <>
+            {/* 민심 결과 */}
             <section className="result__section">
               <div className="result__sectionHead">
                 <h2>🧑‍🤝‍🧑 민심 결과</h2>
@@ -359,33 +429,40 @@ export default function Result() {
               </div>
             </section>
 
-            {result.broadcast_result && (
+            {/* 방송 결과: 승자만 표시 */}
+            {result.actual_result ? (
               <section className="result__section">
                 <div className="result__sectionHead">
                   <h2>📺 방송 결과</h2>
-                  <span className="result__metaText">방송 기준 결과</span>
+                  <span className="result__metaText">
+                    {result.match ? "민심과 일치" : "민심과 불일치"}
+                  </span>
                 </div>
 
-                <div className="result__bars">
-                  {(() => {
-                    const total = calcTotal(result.broadcast_result!);
-                    return result.broadcast_result!.map((r) => (
-                      <Bar
-                        key={r.label}
-                        label={prettyLabel(r.label)}
-                        votes={r.votes}
-                        total={total}
-                      />
-                    ));
-                  })()}
+                <div className="result__winnerRow">
+                  <div className="result__winner">
+                    <span
+                      className={`result__winnerChip ${
+                        result.match
+                          ? "result__winnerChip--match"
+                          : "result__winnerChip--mismatch"
+                      }`}
+                    >
+                      승자: {getWinnerLabel(result)}
+                    </span>
+                  </div>
+                  <span className="result__winnerNote">
+                    득표수 상세는 제공되지 않아요
+                  </span>
                 </div>
               </section>
-            )}
+            ) : null}
 
+            {/* 댓글 */}
             <section className="result__section">
               <div className="result__sectionHead">
                 <h2>💬 댓글</h2>
-                <span className="result__metaText">id/pw로 수정·삭제</span>
+                <span className="result__metaText">id/pw로 삭제</span>
               </div>
 
               <div className="comment__form">
@@ -407,17 +484,31 @@ export default function Result() {
 
                 <textarea
                   className="comment__textarea"
-                  placeholder="의견을 남겨보세요"
+                  placeholder={
+                    hasValidVoteId
+                      ? "의견을 남겨보세요"
+                      : "투표 후에 댓글을 작성할 수 있어요."
+                  }
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
+                  disabled={!hasValidVoteId}
                 />
+
+                {!hasValidVoteId ? (
+                  <div className="comment__error">
+                    vote_id가 없어요. 투표 완료 후 Result로 이동할 때 vote_id를
+                    쿼리에 포함시켜줘야 댓글 작성이 가능해요.
+                  </div>
+                ) : null}
 
                 {submitError && (
                   <div className="comment__error">{submitError}</div>
                 )}
 
                 <button
-                  className={`comment__submit ${canSubmit && !submitBusy ? "" : "is-disabled"}`}
+                  className={`comment__submit ${
+                    canSubmit && !submitBusy ? "" : "is-disabled"
+                  }`}
                   type="button"
                   onClick={onSubmitComment}
                   disabled={!canSubmit || submitBusy}
@@ -431,19 +522,12 @@ export default function Result() {
                   <li className="comment__item" key={c.id}>
                     <div className="comment__meta">
                       <strong>{c.author}</strong>
-                      <span>{c.created_at}</span>
+                      <span>{formatRelativeOrDate(c.created_at)}</span>
                     </div>
 
                     <p className="comment__content">{c.content}</p>
 
                     <div className="comment__actions">
-                      <button
-                        type="button"
-                        className="comment__btn"
-                        onClick={() => openEdit(c)}
-                      >
-                        수정
-                      </button>
                       <button
                         type="button"
                         className="comment__btn comment__btn--danger"
@@ -460,19 +544,15 @@ export default function Result() {
         )}
       </main>
 
-      {/* 수정/삭제 모달 */}
+      {/* 삭제 모달 */}
       {modal.open && modal.target && (
         <div className="modal" role="dialog" aria-modal="true">
           <div className="modal__overlay" onClick={closeModal} />
           <div className="modal__panel">
-            <div className="modal__title">
-              {modal.mode === "edit" ? "댓글 수정" : "댓글 삭제"}
-            </div>
+            <div className="modal__title">댓글 삭제</div>
 
             <div className="modal__desc">
-              {modal.mode === "edit"
-                ? `작성자: ${modal.target.author} · 비밀번호 확인 후 수정할 수 있어요.`
-                : `작성자: ${modal.target.author} · 비밀번호 확인 후 삭제할 수 있어요.`}
+              작성자: {modal.target.author} · 비밀번호 확인 후 삭제할 수 있어요.
             </div>
 
             <input
@@ -484,17 +564,6 @@ export default function Result() {
                 setModal((m) => ({ ...m, password: e.target.value }))
               }
             />
-
-            {modal.mode === "edit" && (
-              <textarea
-                className="modal__textarea"
-                placeholder="수정할 내용"
-                value={modal.content}
-                onChange={(e) =>
-                  setModal((m) => ({ ...m, content: e.target.value }))
-                }
-              />
-            )}
 
             {modal.error && <div className="modal__error">{modal.error}</div>}
 
@@ -509,15 +578,11 @@ export default function Result() {
               </button>
               <button
                 type="button"
-                className={`modal__btn ${modal.mode === "delete" ? "modal__btn--danger" : ""}`}
-                onClick={confirmModal}
+                className="modal__btn modal__btn--danger"
+                onClick={confirmDelete}
                 disabled={modal.busy}
               >
-                {modal.busy
-                  ? "처리 중…"
-                  : modal.mode === "edit"
-                    ? "수정"
-                    : "삭제"}
+                {modal.busy ? "처리 중…" : "삭제"}
               </button>
             </div>
           </div>

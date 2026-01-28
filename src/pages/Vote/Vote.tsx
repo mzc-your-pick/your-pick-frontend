@@ -232,11 +232,9 @@ export default function Vote() {
       }
 
       // ✅ 투표 성공 후 Result로 이동
-      // 기존 result 페이지가 topic_id/choice_key를 쓰고 있으니 유지 + vote_choice도 전달
       const sp = new URLSearchParams({
         topic_id: String(detail.id),
-        choice_key: choice.key,
-        vote_choice: String(choice.vote_choice),
+        vote_id: String(res.data.id), // ✅ 추가 (이게 vote_id)
       });
 
       navigate(`/result?${sp.toString()}`);
