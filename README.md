@@ -416,3 +416,28 @@ npm run build
   - HTTPS + PAT 생성 후 “Password” 자리에 토큰 입력
 
   - 매번 입력이 싫으면 credential helper 설정
+
+### 4) Let’s Encrypt 인증서 발급 실패 (Rate Limit: too many certificates)
+
+#### 증상
+`certbot` 실행 시 다음과 같은 에러 발생:
+```nginx
+too many certificates (50) already issued for "kro.kr" in the last 168h0m0s
+retry after 2026-01-28 08:43:38 UTC
+```
+
+#### 원인
+- Let’s Encrypt는 **도메인 단위 발급 제한(Rate Limit)**이 있음
+
+- kro.kr **같은 무료 서브도메인 제공 서비스**는
+
+  - 여러 사용자가 같은 상위 도메인(kro.kr)을 공유
+
+  - 다른 사용자들의 발급 시도로 인해 **상위 도메인 전체가 한도 초과**
+
+- 이 경우, 내 설정이 정상이어도 **인증서 발급 자체가 차단됨**
+
+#### 해결
+- 도메인을 다른 무료 도메인으로 변경
+-> 정상적으로 인증서 발급 성공
+-> HTTPS 접속 가능
