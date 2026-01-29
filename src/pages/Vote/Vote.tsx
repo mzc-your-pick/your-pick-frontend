@@ -77,13 +77,36 @@ function toEmbedUrl(youtubeUrl: string) {
   }
 }
 
+function normalizeName(s: string) {
+  return (
+    (s ?? "")
+      .toString()
+      .trim()
+      // 모든 공백(스페이스/탭/개행/nbsp 등) 제거
+      .replace(/\s+/g, "")
+      // 필요하면 특수문자까지 제거하고 싶으면 아래 주석 해제
+      // .replace(/[^\p{L}\p{N}]/gu, "")
+      .toLowerCase()
+  );
+}
+
 function getImageForName(
   participant_images: ParticipantImage[] | undefined,
   name: string,
 ) {
   const list = Array.isArray(participant_images) ? participant_images : [];
-  const found = list.find((x) => x.participant_name === name);
-  return found?.image_url ?? "";
+
+  const target = normalizeName(name);
+
+  // 1) 공백 제거/소문자 기준으로 매칭
+  const found = list.find((x) => normalizeName(x.participant_name) === target);
+  if (found?.image_url) return found.image_url;
+
+  // 2) 혹시 participant_name에 name이 포함되는 형태로 오는 케이스까지 완화(선택)
+  const loose = list.find((x) =>
+    normalizeName(x.participant_name).includes(target),
+  );
+  return loose?.image_url ?? "";
 }
 
 function buildOptions(detail: TopicDetailApi): VoteOption[] {
