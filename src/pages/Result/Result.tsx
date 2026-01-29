@@ -96,24 +96,45 @@ async function fetchResult(topicId: number): Promise<ResultDetail> {
   if (!r.success || !r.data) throw new Error("failed_result");
 
   const d = r.data;
-
-  // public_votes.results: { "1": {count, percent}, ... }
-  // 참가자 전체를 기준으로 results가 빠진 항목도 0표로 채워서 UI 안정화
   const resultsMap = d.public_votes?.results ?? {};
   const participants = Array.isArray(d.participants) ? d.participants : [];
 
-  const public_result: ResultItem[] = participants.map((name, idx) => {
-    const key = String(idx + 1); // vote_choice is 1-based
-    const r = resultsMap[key];
-    return {
-      label: name,
-      votes: Number(r?.count ?? 0) || 0,
-      percent: r?.percent,
-    };
-  });
+  let public_result: ResultItem[] = [];
 
-  // 득표순 정렬(원하면 원래 순서 유지로 바꿔도 됨)
-  public_result.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
+  // ✅ vote_type=1: 합격/불합 2개 bar로 고정
+  if (d.vote_type === 1) {
+    const pass = resultsMap["1"];
+    const fail = resultsMap["2"];
+
+    public_result = [
+      {
+        label: "PASS", // prettyLabel에서 "합격"으로 바뀜
+        votes: Number(pass?.count ?? 0) || 0,
+        percent: pass?.percent,
+      },
+      {
+        label: "FAIL", // prettyLabel에서 "불합격"으로 바뀜
+        votes: Number(fail?.count ?? 0) || 0,
+        percent: fail?.percent,
+      },
+    ];
+
+    // 원하면 득표순 정렬
+    public_result.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
+  } else {
+    // ✅ vote_type=2~: 참가자 기준으로 bar 생성 (기존 로직)
+    public_result = participants.map((name, idx) => {
+      const key = String(idx + 1); // vote_choice 1-based
+      const rr = resultsMap[key];
+      return {
+        label: name,
+        votes: Number(rr?.count ?? 0) || 0,
+        percent: rr?.percent,
+      };
+    });
+
+    public_result.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
+  }
 
   return {
     title: d.topic_title,
